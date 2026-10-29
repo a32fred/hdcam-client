@@ -182,6 +182,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	go func() {
 		defer close(captured)
 		supervisor.Run(ctx, supervisor.Options{MinBackoff: time.Second, MaxBackoff: 30 * time.Second, StableAfter: time.Minute}, func(attemptCtx context.Context) error {
+			hub.CaptureAttemptStarted()
 			var recordErr error
 			err := live.Watch(attemptCtx, 45*time.Second, 15*time.Second, func(watchCtx context.Context, touch func()) error {
 				var audioConsumer func([]byte) error
@@ -229,9 +230,11 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 				return recordErr
 			}
 			return err
-		}, func(_ error, delay time.Duration) {
+		}, func(err error, delay time.Duration) {
 			if ctx.Err() == nil {
-				fmt.Fprintf(diagnostics, "capture ended; retrying in %s\n", delay)
+				code := capture.RetryCode(err)
+				hub.CaptureRetry(code, delay)
+				fmt.Fprintf(diagnostics, "capture ended (%s); retrying in %s\n", code, delay)
 			}
 		})
 	}()

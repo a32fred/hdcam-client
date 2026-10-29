@@ -14,6 +14,7 @@ const (
 )
 
 var ErrTruncated = errors.New("truncated frame envelope")
+var ErrFormat = errors.New("invalid media envelope")
 
 type Frame struct {
 	Type      uint8
@@ -92,12 +93,12 @@ func (r *Reader) Next() (Frame, error) {
 	}
 	if magic := binary.LittleEndian.Uint32(header[:4]); magic != frameMagic {
 		r.stats.TrailingBytes = headerSize
-		return Frame{}, r.fail(fmt.Errorf("invalid frame magic: %#08x", magic))
+		return Frame{}, r.fail(fmt.Errorf("%w: invalid frame magic: %#08x", ErrFormat, magic))
 	}
 	payloadLen := binary.LittleEndian.Uint32(header[16:20])
 	if payloadLen > r.maxPayload {
 		r.stats.TrailingBytes = headerSize
-		return Frame{}, r.fail(fmt.Errorf("payload length %d exceeds maximum %d", payloadLen, r.maxPayload))
+		return Frame{}, r.fail(fmt.Errorf("%w: payload length %d exceeds maximum %d", ErrFormat, payloadLen, r.maxPayload))
 	}
 	if err := r.r.pendingError(); err != nil && !errors.Is(err, io.EOF) {
 		r.stats.TrailingBytes = headerSize

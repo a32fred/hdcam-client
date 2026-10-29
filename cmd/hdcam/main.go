@@ -26,9 +26,12 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		fmt.Fprintln(output, "Usage: hdcam doctor [--config FILE] | hdcam extract --output NEW_DIRECTORY STREAM_FILE | hdcam capture --config FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY | hdcam token --output FILE | hdcam serve --config FILE --token-file FILE | hdcam preview --output NEW_MP4 --fps 10 INPUT_MJPEG")
 		fmt.Fprintln(output, "Recording: hdcam record --source VIEWER_ORIGIN --token-file FILE --archive-dir DIRECTORY [--audio] [--duration 30s]")
 		fmt.Fprintln(output, "Playback: hdcam recordings --archive-dir DIRECTORY --token-file FILE [--listen 127.0.0.1:8081]")
+		fmt.Fprintln(output, "Status: hdcam status --url VIEWER_ORIGIN --token-file FILE [--username VIEWER_NAME]")
 		return 0
 	}
 	switch args[0] {
+	case "status":
+		return statusCommand(args[1:], output, diagnosticOutput)
 	case "record":
 		return recordCommand(args[1:], output, diagnosticOutput)
 	case "recordings":

@@ -17,6 +17,7 @@ Native ARM64 runtime binaries can be built with `bash scripts/build-native.sh`. 
 
 ```sh
 bin/hdcam doctor [--config PRIVATE_FILE]
+bin/hdcam status --url http://127.0.0.1:8080 --token-file PRIVATE_TOKEN_FILE
 bin/hdcam extract --output NEW_DIRECTORY STREAM_FILE
 bin/hdcam capture --config PRIVATE_FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY
 bin/hdcam capture --audio --config PRIVATE_FILE --duration 10s --output NEW_DIRECTORY
@@ -32,6 +33,8 @@ bin/hdcam recordings --archive-dir PRIVATE_ARCHIVE --token-file PRIVATE_TOKEN_FI
 
 `doctor` validates tool paths and optional runtime ELF metadata without connecting. Without `--config`, missing FFmpeg or QEMU on PATH returns exit 1; a valid configured runtime returns exit 0 independently of optional PATH tools. Profiles must be private regular files (0600).
 
+`status` queries an existing viewer without opening a camera session. It reports availability, frame age and, on updated servers, capture phases, attempts, recoveries and recent received frame rate. Offline HTTP503 still produces a report with exit1; authentication/transport failures return a fixed error. See [diagnostics](docs/diagnostics.md) for meanings and compatibility.
+
 `extract` validates the 32-byte media envelopes and JPEG payloads, then writes `video.mjpg` and `result.json` in a new private output directory. A truncated last envelope is reported and omitted. `complete: true` means export finished, not that every camera frame was received. Failure preserves `.part` and writes `complete: false` when possible. Put flags before the input path.
 
 `capture` uses the external SDK backend on Linux x86_64. Duration must be whole seconds from 1s to 1h. Mode 1 is VGA (640×480); mode 2 is QVGA (320×240). These modes were privately exercised on one camera; support for other camera families or capture platforms is not established.
@@ -40,7 +43,7 @@ bin/hdcam recordings --archive-dir PRIVATE_ARCHIVE --token-file PRIVATE_TOKEN_FI
 
 `serve` opens one camera session and distributes validated frames to authenticated browser viewers. Video uses a same-origin WebSocket with a bounded acknowledgement window, falling back to latest-snapshot polling if that transport is unavailable. Multipart MJPEG remains available. It retries failed/frozen captures and optionally records retained video segments. `--audio` explicitly enables microphone capture and independent browser sound with adjustable amplification. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
 
-One-shot `capture`/`extract --audio` writes PCM WAV alongside video. The Go ADPCM decoder matched the original decoder byte for byte on the private reference recording; live browser audio is integrated, with no guaranteed A/V synchronization. Discovery can find candidate UID/MAC/IP values on an explicitly selected Linux interface. `wifi-plan` validates and constructs a post-reset provisioning request in memory but sends nothing; factory-reset recovery is not hardware-validated. Motion detection and cross-platform native capture remain unimplemented. No flash, OTA or automatic Wi-Fi changes are performed.
+One-shot `capture`/`extract --audio` writes PCM WAV alongside video. The Go ADPCM decoder matched the original decoder byte for byte on the private reference recording; live browser audio is integrated, with no guaranteed A/V synchronization. Discovery can find candidate UID/MAC/IP values on an explicitly selected Linux interface. `wifi-plan` validates and constructs a post-reset provisioning request in memory but sends nothing; automated post-reset recovery is not implemented. Motion detection and cross-platform native capture remain unimplemented. No flash, OTA or automatic Wi-Fi changes are performed.
 
 `record` archives video/audio from an already running viewer without opening another camera session or restarting it. `recordings` serves protected playback separately. New Linux archives retain completed segments by count and managed file bytes, preserve interrupted parts, and resume after reopening. `serve --archive-dir` can attach the same recorder/player directly on a future start. See [recordings](docs/recordings.md) for quotas, timeline limitations and commands; the legacy `--record-dir` format remains video-only.
 

@@ -24,6 +24,14 @@ type Hub struct {
 	audioEnabled     bool
 	audioSubscribers map[chan []byte]struct{}
 	recordings       http.Handler
+	diagnostics      captureDiagnosticState
+}
+
+type Health struct {
+	Online    bool      `json:"online"`
+	Frames    uint64    `json:"frames"`
+	LastFrame time.Time `json:"last_frame"`
+	CaptureStatus
 }
 
 //go:embed viewer.js
@@ -40,6 +48,7 @@ func (h *Hub) Publish(frame []byte) {
 	defer h.mu.Unlock()
 	h.frame = append([]byte(nil), frame...)
 	h.updated = time.Now()
+	h.noteVideoLocked(h.updated)
 	h.generation++
 	close(h.changed)
 	h.changed = make(chan struct{})
@@ -48,6 +57,12 @@ func (h *Hub) snapshot() ([]byte, time.Time, uint64, <-chan struct{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.frame, h.updated, h.generation, h.changed
+}
+
+func (h *Hub) healthStatus(now time.Time) Health {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return Health{Online: !h.updated.IsZero() && now.Sub(h.updated) < 15*time.Second, Frames: h.generation, LastFrame: h.updated, CaptureStatus: h.diagnosticsLocked(now)}
 }
 func (h *Hub) Handler(token string) http.Handler {
 	return h.HandlerWithCredentials("hdcam", token)
@@ -93,17 +108,12 @@ func (h *Hub) HandlerWithCredentials(username, token string) http.Handler {
 				fmt.Fprint(w, `<p><a href="/recordings">Gravações</a></p>`)
 			}
 		case "/health":
-			_, updated, sequence, _ := h.snapshot()
-			fresh := !updated.IsZero() && time.Since(updated) < 15*time.Second
+			status := h.healthStatus(time.Now())
 			w.Header().Set("Content-Type", "application/json")
-			if !fresh {
+			if !status.Online {
 				w.WriteHeader(503)
 			}
-			json.NewEncoder(w).Encode(struct {
-				Online    bool      `json:"online"`
-				Frames    uint64    `json:"frames"`
-				LastFrame time.Time `json:"last_frame"`
-			}{fresh, sequence, updated})
+			json.NewEncoder(w).Encode(status)
 		case "/snapshot":
 			select {
 			case h.viewers <- struct{}{}:

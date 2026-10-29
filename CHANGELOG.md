@@ -26,3 +26,7 @@
 - WebSocket browser video with bounded acknowledgement flow, latest-frame delivery and same-origin checks; snapshot fallback remains.
 - Cancel obsolete image decodes and reconnect after tab visibility/Back-Forward cache changes.
 - Propagate application cancellation to upgraded connections during shutdown.
+
+- Capture phase, retry/failure counters, recent received frame rate and frame age in the protected health endpoint.
+- `status` reads legacy/current viewer health with bounded requests, private-file authentication and sanitized errors.
+- Native startup/stream errors retain their stage even when joined with an empty media output error.
