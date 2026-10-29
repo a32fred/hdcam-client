@@ -87,6 +87,10 @@ func RunFrames(ctx context.Context, c config.Config, duration time.Duration, mod
 }
 
 func RunAV(ctx context.Context, c config.Config, duration time.Duration, mode int, consume, consumeAudio func([]byte) error) (report mjpeg.Report, err error) {
+	return RunObserved(ctx, c, duration, mode, consume, consumeAudio, nil)
+}
+
+func RunObserved(ctx context.Context, c config.Config, duration time.Duration, mode int, consume, consumeAudio func([]byte) error, observe func(mjpeg.FrameObservation) error) (report mjpeg.Report, err error) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		return report, errors.New("native capture is supported only on Linux x86_64")
 	}
@@ -98,7 +102,7 @@ func RunAV(ctx context.Context, c config.Config, duration time.Duration, mode in
 	defer cancel()
 	err = process.Run(bounded, runtimeSpec(c, request), func(source io.Reader) error {
 		var decodeErr error
-		report, decodeErr = mjpeg.AVFrames(bounded, source, consume, consumeAudio)
+		report, decodeErr = mjpeg.ObserveAVFrames(bounded, source, consume, consumeAudio, observe)
 		return decodeErr
 	})
 	if err != nil {

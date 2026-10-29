@@ -100,6 +100,7 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		duration := flags.Duration("duration", 10*time.Second, "whole seconds, 1s to 1h")
 		mode := flags.Int("video-mode", 1, "1=640x480, 2=320x240")
 		withAudio := flags.Bool("audio", false, "capture microphone audio to WAV without A/V synchronization")
+		trace := flags.Bool("trace", false, "record monotonic complete-envelope arrivals and sequence counters")
 		destination := flags.String("output", "", "new output directory")
 		if err := flags.Parse(args[1:]); err != nil {
 			return 2
@@ -120,12 +121,18 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 		err = writeOutput(*destination, output, func(dst io.Writer) (mjpeg.Report, error) {
-			if !*withAudio {
-				return capture.Run(ctx, c, *duration, *mode, dst)
+			produce := func(observe func(mjpeg.FrameObservation) error) (mjpeg.Report, error) {
+				if !*withAudio {
+					return capture.RunObserved(ctx, c, *duration, *mode, jpegSink(dst), nil, observe)
+				}
+				return withAudioFile(*destination, func(pcm func([]byte) error) (mjpeg.Report, error) {
+					return capture.RunObserved(ctx, c, *duration, *mode, jpegSink(dst), pcm, observe)
+				})
 			}
-			return withAudioFile(*destination, func(pcm func([]byte) error) (mjpeg.Report, error) {
-				return capture.RunAV(ctx, c, *duration, *mode, jpegSink(dst), pcm)
-			})
+			if *trace {
+				return withArrivalTrace(*destination, *mode, *withAudio, produce)
+			}
+			return produce(nil)
 		})
 		if err != nil {
 			fmt.Fprintln(diagnosticOutput, err)

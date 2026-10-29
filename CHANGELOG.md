@@ -30,3 +30,6 @@
 - Capture phase, retry/failure counters, recent received frame rate and frame age in the protected health endpoint.
 - `status` reads legacy/current viewer health with bounded requests, private-file authentication and sanitized errors.
 - Native startup/stream errors retain their stage even when joined with an empty media output error.
+
+- Optional capture arrival tracing: monotonic per-envelope JSONL, raw counters and received-frame/gap statistics, with private partial-safe output.
+- Separate complete-envelope arrival observations from JPEG validation and source timestamps; no sensor-rate claim is inferred.

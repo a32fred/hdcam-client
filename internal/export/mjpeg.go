@@ -24,6 +24,13 @@ type Report struct {
 	Media               media.Stats `json:"media"`
 }
 
+// FrameObservation describes a complete envelope before image decoding.
+// RawTime is an uninterpreted source field, not a per-frame clock.
+type FrameObservation struct {
+	Type, StreamID                  uint8
+	Sequence, RawTime, PayloadBytes uint32
+}
+
 type exactJPEGReader struct{ *bytes.Reader }
 
 func (r exactJPEGReader) Read(p []byte) (int, error) {
@@ -54,6 +61,10 @@ func Frames(ctx context.Context, source io.Reader, consume func([]byte) error) (
 // AVFrames routes independently decoded PCM packets alongside validated JPEGs.
 // Callbacks run synchronously; no audio/video timestamp synchronization is inferred.
 func AVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func([]byte) error) (report Report, err error) {
+	return ObserveAVFrames(ctx, source, consume, consumeAudio, nil)
+}
+
+func ObserveAVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func([]byte) error, observe func(FrameObservation) error) (report Report, err error) {
 	reader := media.NewReader(source, 0)
 	defer func() { report.Media = reader.Statistics() }()
 	for {
@@ -61,6 +72,11 @@ func AVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func(
 			return report, err
 		}
 		frame, err := reader.Next()
+		if err == nil && observe != nil {
+			if err := observe(FrameObservation{Type: frame.Type, StreamID: frame.StreamID, Sequence: frame.Sequence, RawTime: frame.Timestamp, PayloadBytes: uint32(len(frame.Payload))}); err != nil {
+				return report, fmt.Errorf("observe media: %w", err)
+			}
+		}
 		if canceled := ctx.Err(); canceled != nil {
 			return report, canceled
 		}

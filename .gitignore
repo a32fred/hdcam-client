@@ -23,3 +23,5 @@ config.local.json
 *.local.json
 *.token
 *.key
+frame-arrivals.jsonl
+frame-trace-summary.json

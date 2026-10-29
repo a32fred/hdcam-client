@@ -21,6 +21,7 @@ bin/hdcam status --url http://127.0.0.1:8080 --token-file PRIVATE_TOKEN_FILE
 bin/hdcam extract --output NEW_DIRECTORY STREAM_FILE
 bin/hdcam capture --config PRIVATE_FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY
 bin/hdcam capture --audio --config PRIVATE_FILE --duration 10s --output NEW_DIRECTORY
+bin/hdcam capture --trace --audio --config PRIVATE_FILE --duration 60s --video-mode 1 --output NEW_DIRECTORY
 bin/hdcam preview --output NEW_FILE.mp4 --fps 10 INPUT_MJPEG
 bin/hdcam token --output NEW_PRIVATE_TOKEN_FILE
 bin/hdcam serve --config PRIVATE_FILE --token-file PRIVATE_TOKEN_FILE
@@ -38,6 +39,8 @@ bin/hdcam recordings --archive-dir PRIVATE_ARCHIVE --token-file PRIVATE_TOKEN_FI
 `extract` validates the 32-byte media envelopes and JPEG payloads, then writes `video.mjpg` and `result.json` in a new private output directory. A truncated last envelope is reported and omitted. `complete: true` means export finished, not that every camera frame was received. Failure preserves `.part` and writes `complete: false` when possible. Put flags before the input path.
 
 `capture` uses the external SDK backend on Linux x86_64. Duration must be whole seconds from 1s to 1h. Mode 1 is VGA (640×480); mode 2 is QVGA (320×240). These modes were privately exercised on one camera; support for other camera families or capture platforms is not established.
+
+`capture --trace` records monotonic complete-envelope consumption times and source counters before JPEG decoding. It summarizes received rate, gaps and sequence transitions without treating the raw envelope field as a clock or inferring sensor FPS. See [frame arrivals](docs/frame-arrivals.md) for the measurement boundary, files and controlled VGA/QVGA comparisons.
 
 `preview` uses external FFmpeg to render a silent H.264 MP4 at an **assumed constant frame rate**. It does not reconstruct camera timestamps or synchronize audio. Existing outputs are never replaced.
 
