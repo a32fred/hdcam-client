@@ -26,7 +26,7 @@ jobs:
       - run: go test ./internal/media -fuzz=FuzzReader -fuzztime=5s -parallel=2
       - run: go build -o bin/hdcam ./cmd/hdcam
       - name: Browser playback logic
-        run: node --test internal/archive/recordings_test.js
+        run: node --test internal/live/viewer_test.js internal/archive/recordings_test.js
       - name: Native network guard
         run: |
           gcc -Wall -Wextra -Werror native/local_only_test.c -ldl -o /tmp/hdcam-guard-test

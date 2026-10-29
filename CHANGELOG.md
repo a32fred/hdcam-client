@@ -22,3 +22,7 @@
 - `record` subscribes to an existing authenticated viewer without a second SDK session; `recordings` provides separate protected playback.
 - Browser playback with seek/pause, WAV range requests and delayed-response regressions.
 - `serve --archive-dir` can attach recording/playback directly; legacy flat video recording remains available separately.
+
+- WebSocket browser video with bounded acknowledgement flow, latest-frame delivery and same-origin checks; snapshot fallback remains.
+- Cancel obsolete image decodes and reconnect after tab visibility/Back-Forward cache changes.
+- Propagate application cancellation to upgraded connections during shutdown.

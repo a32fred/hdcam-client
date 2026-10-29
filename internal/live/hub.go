@@ -78,6 +78,8 @@ func (h *Hub) HandlerWithCredentials(username, token string) http.Handler {
 			return
 		}
 		switch r.URL.Path {
+		case "/live":
+			h.streamWebSocket(w, r)
 		case "/audio":
 			h.streamAudio(w, r)
 		case "/viewer.js":

@@ -1,6 +1,6 @@
 # hdcam-client
 
-A Go client for validating HDCAM SDK streams, experimental local video/audio capture, authenticated browser viewing, segmented video recording and reconnect supervision. Own code uses the Go 1.26 standard library, embedded browser JavaScript and a small C bridge. Proprietary SDK/runtime binaries are supplied separately; this is not an independent implementation of the vendor's transport.
+A Go client for validating HDCAM SDK streams, experimental local video/audio capture, authenticated browser viewing, segmented video recording and reconnect supervision. It uses Go1.26, embedded browser JavaScript and a small C bridge; the browser WebSocket transport uses the pinned `github.com/coder/websocket` module. Proprietary SDK/runtime binaries are supplied separately; this is not an independent implementation of the vendor's transport.
 
 ## Build and test
 
@@ -38,7 +38,7 @@ bin/hdcam recordings --archive-dir PRIVATE_ARCHIVE --token-file PRIVATE_TOKEN_FI
 
 `preview` uses external FFmpeg to render a silent H.264 MP4 at an **assumed constant frame rate**. It does not reconstruct camera timestamps or synchronize audio. Existing outputs are never replaced.
 
-`serve` opens one camera session and distributes validated frames to authenticated browser viewers. Snapshot polling displays the latest frame without buffering an old stream; multipart MJPEG is also available. It retries failed/frozen captures and optionally records retained video segments. `--audio` explicitly enables microphone capture and independent browser sound with adjustable amplification. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
+`serve` opens one camera session and distributes validated frames to authenticated browser viewers. Video uses a same-origin WebSocket with a bounded acknowledgement window, falling back to latest-snapshot polling if that transport is unavailable. Multipart MJPEG remains available. It retries failed/frozen captures and optionally records retained video segments. `--audio` explicitly enables microphone capture and independent browser sound with adjustable amplification. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
 
 One-shot `capture`/`extract --audio` writes PCM WAV alongside video. The Go ADPCM decoder matched the original decoder byte for byte on the private reference recording; live browser audio is integrated, with no guaranteed A/V synchronization. Discovery can find candidate UID/MAC/IP values on an explicitly selected Linux interface. `wifi-plan` validates and constructs a post-reset provisioning request in memory but sends nothing; factory-reset recovery is not hardware-validated. Motion detection and cross-platform native capture remain unimplemented. No flash, OTA or automatic Wi-Fi changes are performed.
 

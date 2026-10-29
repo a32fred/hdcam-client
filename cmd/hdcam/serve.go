@@ -157,6 +157,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 		hub.SetRecordings(archive.Handler(catalog))
 	}
 	server := &http.Server{Addr: *address, TLSConfig: tlsConfig, Handler: hub.HandlerWithCredentials(*username, token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+	server.BaseContext = func(net.Listener) context.Context { return ctx }
 	listener, err := net.Listen("tcp", *address)
 	if err != nil {
 		if recorder != nil {

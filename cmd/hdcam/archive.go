@@ -136,6 +136,7 @@ func recordingsCommand(args []string, out, diagnostics io.Writer) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	served := make(chan error, 1)
+	server.BaseContext = func(net.Listener) context.Context { return ctx }
 	go func() { served <- server.Serve(listener) }()
 	fmt.Fprintf(out, "recordings available at http://%s/recordings\n", listener.Addr())
 	select {

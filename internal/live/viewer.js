@@ -66,27 +66,142 @@ async function health() {
     connection.textContent = 'Sem conexão com o visualizador; tentando novamente…';
   } finally { clearTimeout(timer); setTimeout(health, 5000); }
 }
-let lastImage, etag;
-async function frame() {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 4000);
-  let retry = 500;
+let epoch = 0, socket, startupTimer, retryTimer, pollTimer, pollAbort, lastImage, etag;
+let stopped = false, fallback = false, received = 0n, pending, decoding = false;
+const activeDecodes = new Map();
+function cancelDecodes() {
+  for (const [image, detached] of activeDecodes) {
+    detached.src = '';
+    URL.revokeObjectURL(image);
+  }
+  activeDecodes.clear();
+}
+
+function cancelTimers() {
+  clearTimeout(startupTimer); clearTimeout(retryTimer); clearTimeout(pollTimer);
+}
+function cancelPoll() {
+  clearTimeout(pollTimer);
+  if (pollAbort) { pollAbort.abort(); pollAbort = undefined; }
+}
+function invalidate() {
+  epoch++;
+  cancelDecodes();
+  pending = undefined; decoding = false; received = 0n;
+  cancelTimers(); cancelPoll();
+  const old = socket; socket = undefined;
+  if (old) old.close();
+}
+function replaceImage(image) {
+  video.src = image;
+  if (lastImage) URL.revokeObjectURL(lastImage);
+  lastImage = image;
+}
+async function paint(blob, generation, current, ws) {
+  const image = URL.createObjectURL(blob);
+  const detached = new Image(); activeDecodes.set(image, detached); detached.src = image;
+  try {
+    await detached.decode();
+    if (current !== epoch || stopped || document.hidden || (ws && socket !== ws)) return;
+    replaceImage(image);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(generation.toString());
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    if (activeDecodes.delete(image) && lastImage !== image) URL.revokeObjectURL(image);
+  }
+}
+async function decodeFrame(data, generation, current, ws) {
+  decoding = true;
+  await paint(new Blob([data.slice(9)], {type: 'image/jpeg'}), generation, current, ws);
+  if (current !== epoch || socket !== ws) return;
+  decoding = false;
+  if (pending) {
+    const next = pending; pending = undefined;
+    decodeFrame(next.data, next.generation, current, ws);
+  }
+}
+async function poll(current) {
+  if (!fallback || current !== epoch || stopped || document.hidden) return;
+  const abort = new AbortController(); pollAbort = abort;
+  const timeout = setTimeout(() => abort.abort(), 4000);
+  let delay = 500;
   try {
     const headers = etag ? {'If-None-Match': etag} : {};
-    const response = await fetch('/snapshot', {cache: 'no-store', headers, signal: abort.signal});
-    if (response.status === 304) retry = 60;
+    const response = await fetch('/snapshot', {cache:'no-store', headers, signal:abort.signal});
+    if (response.status === 304) delay = 60;
     if (response.ok) {
       const blob = await response.blob();
-      const image = URL.createObjectURL(blob);
-      video.src = image;
-      try { await video.decode(); } catch (_) { URL.revokeObjectURL(image); return; }
-      if (lastImage) URL.revokeObjectURL(lastImage);
-      lastImage = image;
-      etag = response.headers.get('ETag');
-      retry = 0;
+      if (current !== epoch || abort.signal.aborted || !fallback) return;
+      if (await paint(blob, undefined, current)) {
+        etag = response.headers.get('ETag'); delay = 0;
+      }
     }
-  } catch (_) { /* Retry one request at a time; never queue stale frames. */ }
-  finally { clearTimeout(timer); setTimeout(frame, retry); }
+  } catch (_) {
+  } finally {
+    clearTimeout(timeout);
+    if (pollAbort === abort) pollAbort = undefined;
+    if (fallback && current === epoch && !stopped && !document.hidden) pollTimer = setTimeout(() => poll(current), delay);
+  }
 }
+function startFallback() {
+  if (stopped || document.hidden) return;
+  invalidate(); fallback = true;
+  const current = epoch;
+  poll(current);
+  retryTimer = setTimeout(connect, 5000);
+}
+function connect() {
+  if (stopped || document.hidden) return;
+  clearTimeout(retryTimer);
+  const current = epoch;
+  let ws;
+  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/live'); }
+  catch (_) { if (!fallback) startFallback(); else retryTimer = setTimeout(connect, 5000); return; }
+  socket = ws; ws.binaryType = 'arraybuffer';
+  startupTimer = setTimeout(() => {
+    if (socket !== ws) return;
+    if (fallback) { socket = undefined; ws.close(); retryTimer = setTimeout(connect, 5000); }
+    else startFallback();
+  }, 5000);
+  ws.onmessage = event => {
+    const data = event.data;
+    if (socket !== ws || !(data instanceof ArrayBuffer) || data.byteLength <= 9 || data.byteLength > 4 * 1024 * 1024 + 9) return;
+    const view = new DataView(data);
+    if (view.getUint8(0) !== 1) return;
+    const generation = view.getBigUint64(1, true);
+    if (generation <= received) return;
+    if (fallback) {
+      cancelPoll(); cancelDecodes(); fallback = false; epoch++;
+      pending = undefined; decoding = false; received = 0n;
+    }
+    clearTimeout(startupTimer);
+    received = generation;
+    if (decoding) pending = {data, generation};
+    else decodeFrame(data, generation, epoch, ws);
+  };
+  ws.onerror = ws.onclose = () => {
+    if (socket !== ws) return;
+    if (fallback) {
+      socket = undefined; clearTimeout(startupTimer); ws.close();
+      retryTimer = setTimeout(connect, 5000);
+    } else startFallback();
+  };
+}
+document.addEventListener('visibilitychange', () => {
+  if (stopped) return;
+  invalidate(); fallback = false;
+  if (!document.hidden) connect();
+});
+window.addEventListener('pagehide', () => {
+  stopped = true; invalidate();
+  if (lastImage) { URL.revokeObjectURL(lastImage); lastImage = undefined; }
+});
+window.addEventListener('pageshow', event => {
+  if (!event.persisted) return;
+  stopped = false; invalidate(); fallback = false;
+  if (!document.hidden) connect();
+});
 health();
-frame();
+connect();

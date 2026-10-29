@@ -1,6 +1,6 @@
 # Installation
 
-The offline parser, extractor and tests use only Go 1.26. Native capture and viewing currently target Linux x86_64 with separately supplied QEMU, ARM64 Bionic runtime and the matching vendor SDK. These dependencies are not installed or distributed by this repository. See [runtime.md](runtime.md) before configuring capture.
+The parser, extractor and tests use Go1.26 and the modules pinned in `go.mod`/`go.sum`. A first build needs access to those modules or an existing module cache; offline extraction does not require a camera or SDK. Native capture currently targets Linux x86_64 with separately supplied QEMU, ARM64 Bionic runtime and the matching vendor SDK. Proprietary dependencies are not installed or distributed by this repository. See [runtime.md](runtime.md) before configuring capture.
 
 ```sh
 go test ./...
