@@ -43,8 +43,8 @@ func TestLoadTokenRejectsInvalidFiles(t *testing.T) {
 			return writeTokenFixture(t, []byte(strings.Repeat("x", 32)), 0644)
 		}},
 		{"directory", func(t *testing.T) string { return directory }},
-		{"short token", func(t *testing.T) string {
-			return writeTokenFixture(t, []byte(strings.Repeat("x", 31)), 0600)
+		{"empty password", func(t *testing.T) string {
+			return writeTokenFixture(t, nil, 0600)
 		}},
 		{"multiline token", func(t *testing.T) string {
 			return writeTokenFixture(t, []byte(strings.Repeat("x", 32)+"\n"+strings.Repeat("y", 32)), 0600)

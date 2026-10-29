@@ -45,14 +45,20 @@ func (h *Hub) snapshot() ([]byte, time.Time, uint64, <-chan struct{}) {
 	return h.frame, h.updated, h.generation, h.changed
 }
 func (h *Hub) Handler(token string) http.Handler {
+	return h.HandlerWithCredentials("hdcam", token)
+}
+
+func (h *Hub) HandlerWithCredentials(username, token string) http.Handler {
 	expected := sha256.Sum256([]byte(token))
+	expectedUser := sha256.Sum256([]byte(username))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		user, password, ok := r.BasicAuth()
 		actual := sha256.Sum256([]byte(password))
-		if token == "" || !ok || user != "hdcam" || subtle.ConstantTimeCompare(actual[:], expected[:]) != 1 {
+		actualUser := sha256.Sum256([]byte(user))
+		if username == "" || token == "" || !ok || subtle.ConstantTimeCompare(actualUser[:], expectedUser[:]) != 1 || subtle.ConstantTimeCompare(actual[:], expected[:]) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="hdcam", charset="UTF-8"`)
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 			return

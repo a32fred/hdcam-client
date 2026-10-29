@@ -2,12 +2,15 @@
 Description=Local HDCAM viewer
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=%h/.local/bin/hdcam serve --config %h/.config/hdcam/camera.json --token-file %h/.config/hdcam/viewer.token
-Restart=on-failure
-RestartSec=10
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+KillMode=control-group
 UMask=0077
 NoNewPrivileges=true
 

@@ -1,0 +1,18 @@
+[Unit]
+Description=Temporary HTTPS tunnel for HDCAM
+Wants=hdcam.service
+After=hdcam.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cloudflared tunnel --config /dev/null --no-autoupdate --protocol http2 --url http://127.0.0.1:8080
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

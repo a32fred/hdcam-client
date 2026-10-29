@@ -42,8 +42,8 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	value := strings.TrimSpace(string(data))
-	if len(value) < 32 || len(data) > 1024 || strings.ContainsAny(value, "\r\n\x00") {
-		return "", errors.New("token must contain 32 to 1024 characters on one line")
+	if len(value) == 0 || len(data) > 1024 || strings.ContainsAny(value, "\r\n\x00") {
+		return "", errors.New("password must contain 1 to 1024 characters on one line")
 	}
 	return value, nil
 }
@@ -78,6 +78,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	flags.SetOutput(diagnostics)
 	profile := flags.String("config", "", "private camera profile")
 	tokenFile := flags.String("token-file", "", "private HTTP password file")
+	username := flags.String("username", "hdcam", "HTTP viewer username")
 	address := flags.String("listen", "127.0.0.1:8080", "literal IP:port; non-loopback requires TLS")
 	cert := flags.String("tls-cert", "", "TLS certificate file")
 	key := flags.String("tls-key", "", "TLS private key file")
@@ -87,6 +88,10 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	frames := flags.Int("segment-frames", 300, "frames per segment; no fixed time implied")
 	keep := flags.Int("keep-segments", 12, "completed segments to retain")
 	if flags.Parse(args) != nil || flags.NArg() != 0 || *profile == "" || *tokenFile == "" || (*mode != 1 && *mode != 2) || *frames <= 0 || *keep <= 0 {
+		return 2
+	}
+	if len(*username) == 0 || len(*username) > 128 || strings.ContainsAny(*username, ":\r\n\x00") {
+		fmt.Fprintln(diagnostics, "invalid viewer username")
 		return 2
 	}
 	host, _, err := net.SplitHostPort(*address)
@@ -125,7 +130,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	hub := live.NewWithAudio(*withAudio)
-	server := &http.Server{Addr: *address, TLSConfig: tlsConfig, Handler: hub.Handler(token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+	server := &http.Server{Addr: *address, TLSConfig: tlsConfig, Handler: hub.HandlerWithCredentials(*username, token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 	listener, err := net.Listen("tcp", *address)
 	if err != nil {
 		if recorder != nil {
@@ -177,7 +182,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 			}
 		})
 	}()
-	fmt.Fprintf(out, "listening on %s; HTTP user: hdcam; password: contents of token file\n", listener.Addr())
+	fmt.Fprintf(out, "listening on %s; HTTP user: %s; password: contents of token file\n", listener.Addr(), *username)
 	var serverErr error
 	select {
 	case serverErr = <-served:

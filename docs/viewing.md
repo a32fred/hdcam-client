@@ -7,7 +7,7 @@ bin/hdcam token --output /private/path/viewer.token
 bin/hdcam serve --config /private/path/camera.json --token-file /private/path/viewer.token
 ```
 
-Open `http://127.0.0.1:8080/`, use username `hdcam` and the private token file contents as the password. Token generation creates a new file with mode 0600 without printing its contents. Camera credentials and viewer credentials are separate. Browser Basic authentication can remain cached until cleared or the service password changes and the server restarts.
+Open `http://127.0.0.1:8080/`, use username `hdcam` and the private token file contents as the password. Supply `--username YOUR_VIEWER_NAME` to choose a different username. The private password file accepts a nonempty single-line password; the `token` command generates a random password without printing it. Files must have mode0600. Camera credentials and viewer credentials are separate. Changing viewer credentials does not change the camera's own credentials. Restart the service after changing its password file. Browser Basic authentication can remain cached until cleared; a private tab can be useful when switching accounts.
 
 The browser requests one latest snapshot at a time, waiting for transfer/decode before asking for another. This avoids replaying stale frames when a proxy buffers an MJPEG stream. ETags avoid re-sending an unchanged frame. Frame rate depends on camera delivery, network round-trip and decoding; this is not a constant-rate video player. `/stream` remains available for clients wanting multipart MJPEG. The page reports stale/unavailable video and retries after network failures.
 
