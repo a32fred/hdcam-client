@@ -24,9 +24,15 @@ func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 func run(args []string, output, diagnosticOutput io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
 		fmt.Fprintln(output, "Usage: hdcam doctor [--config FILE] | hdcam extract --output NEW_DIRECTORY STREAM_FILE | hdcam capture --config FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY | hdcam token --output FILE | hdcam serve --config FILE --token-file FILE | hdcam preview --output NEW_MP4 --fps 10 INPUT_MJPEG")
+		fmt.Fprintln(output, "Recording: hdcam record --source VIEWER_ORIGIN --token-file FILE --archive-dir DIRECTORY [--audio] [--duration 30s]")
+		fmt.Fprintln(output, "Playback: hdcam recordings --archive-dir DIRECTORY --token-file FILE [--listen 127.0.0.1:8081]")
 		return 0
 	}
 	switch args[0] {
+	case "record":
+		return recordCommand(args[1:], output, diagnosticOutput)
+	case "recordings":
+		return recordingsCommand(args[1:], output, diagnosticOutput)
 	case "discover":
 		return discoverCommand(args[1:], output, diagnosticOutput)
 	case "wifi-plan":

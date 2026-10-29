@@ -36,7 +36,7 @@ bin/hdcam capture --audio --config /private/path/camera.json --duration 10s --ou
 bin/hdcam extract --audio --output /private/path/new-extraction SDK_STREAM_FILE
 ```
 
-The segmented service recorder currently records video only, even when live audio is enabled. It keeps the last 12 completed segments plus the current partial segment by default. This bounds frame count rather than duration or disk bytes. The directory must be new. Recording failure stops the service; normal shutdown commits the last segment, while abrupt termination can preserve `.part` files.
+The legacy `--record-dir` service recorder records video only, even when live audio is enabled. It keeps the last 12 completed segments plus the current partial segment by default. This bounds frame count rather than duration or disk bytes. The directory must be new. Recording failure stops the service; normal shutdown commits the last segment, while abrupt termination can preserve `.part` files. For resumable video/audio archives, byte retention and protected browser playback, use the new [recordings](recordings.md) commands or `serve --archive-dir`.
 
 One-shot capture/extraction with `--audio` writes a separate PCM WAV alongside MJPEG. No received audio makes the requested audio export fail. Actual read/process/write failures retain partial files. An incomplete final input envelope is intentionally omitted and counted as trailing bytes; completed valid video/audio can still be exported with `complete:true`, meaning the export completed rather than every source frame was delivered. Native channel assembly omits incomplete final envelopes before Go receives them, so those native trailing bytes are not counted by the Go parser.
 

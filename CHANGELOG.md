@@ -17,3 +17,8 @@
 - Low-latency SDK reads and latest-frame snapshot polling to avoid proxy-buffered video bursts.
 - Linux LAN discovery with explicit interface binding and bounded replies.
 - Offline post-reset Wi-Fi request preparation; no credential transmission or automatic reset.
+
+- Resumable Linux A/V archives with atomic segment directories, WAV files, host-arrival timelines and count/byte retention.
+- `record` subscribes to an existing authenticated viewer without a second SDK session; `recordings` provides separate protected playback.
+- Browser playback with seek/pause, WAV range requests and delayed-response regressions.
+- `serve --archive-dir` can attach recording/playback directly; legacy flat video recording remains available separately.

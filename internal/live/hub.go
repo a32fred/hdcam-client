@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,6 +23,7 @@ type Hub struct {
 	viewers          chan struct{}
 	audioEnabled     bool
 	audioSubscribers map[chan []byte]struct{}
+	recordings       http.Handler
 }
 
 //go:embed viewer.js
@@ -30,6 +32,9 @@ var viewerJS string
 func New() *Hub {
 	return &Hub{changed: make(chan struct{}), viewers: make(chan struct{}, 16), audioSubscribers: make(map[chan []byte]struct{})}
 }
+
+// SetRecordings attaches the protected archive before serving any requests.
+func (h *Hub) SetRecordings(handler http.Handler) { h.recordings = handler }
 func (h *Hub) Publish(frame []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -68,6 +73,10 @@ func (h *Hub) HandlerWithCredentials(username, token string) http.Handler {
 			http.Error(w, "method not allowed", 405)
 			return
 		}
+		if h.recordings != nil && (r.URL.Path == "/recordings" || strings.HasPrefix(r.URL.Path, "/recordings/")) {
+			h.recordings.ServeHTTP(w, r)
+			return
+		}
 		switch r.URL.Path {
 		case "/audio":
 			h.streamAudio(w, r)
@@ -78,6 +87,9 @@ func (h *Hub) HandlerWithCredentials(username, token string) http.Handler {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self' blob:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'")
 			fmt.Fprint(w, `<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width"><title>Câmera</title><h1>Câmera</h1><p id="connection" role="status">Verificando câmera…</p><img id="video" alt="Vídeo da câmera" style="max-width:100%;height:auto"><p><button id="audio" type="button">Ouvir áudio</button> <span id="audio-state" role="status"></span></p><p><label>Amplificação <input id="gain" type="range" min="1" max="20" value="4" step="1"></label> <output id="gain-value">4×</output></p><p><a href="/health">Diagnóstico</a></p><script src="/viewer.js" defer></script></html>`)
+			if h.recordings != nil {
+				fmt.Fprint(w, `<p><a href="/recordings">Gravações</a></p>`)
+			}
 		case "/health":
 			_, updated, sequence, _ := h.snapshot()
 			fresh := !updated.IsZero() && time.Since(updated) < 15*time.Second

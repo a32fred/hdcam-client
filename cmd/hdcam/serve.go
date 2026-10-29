@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"example.com/hdcam-client/internal/archive"
 	"example.com/hdcam-client/internal/capture"
 	"example.com/hdcam-client/internal/config"
 	"example.com/hdcam-client/internal/live"
@@ -87,11 +88,17 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	recording := flags.String("record-dir", "", "optional new segmented recording directory")
 	frames := flags.Int("segment-frames", 300, "frames per segment; no fixed time implied")
 	keep := flags.Int("keep-segments", 12, "completed segments to retain")
+	archiveDir := flags.String("archive-dir", "", "resumable A/V archive directory")
+	archiveBytes := flags.Int64("archive-max-bytes", 512<<20, "managed archive byte budget including preserved partials")
 	if flags.Parse(args) != nil || flags.NArg() != 0 || *profile == "" || *tokenFile == "" || (*mode != 1 && *mode != 2) || *frames <= 0 || *keep <= 0 {
 		return 2
 	}
-	if len(*username) == 0 || len(*username) > 128 || strings.ContainsAny(*username, ":\r\n\x00") {
+	if !validViewerName(*username) {
 		fmt.Fprintln(diagnostics, "invalid viewer username")
+		return 2
+	}
+	if (*recording != "" && *archiveDir != "") || *archiveBytes <= 0 {
+		fmt.Fprintln(diagnostics, "choose one recording format and a positive archive byte budget")
 		return 2
 	}
 	host, _, err := net.SplitHostPort(*address)
@@ -127,14 +134,36 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 			return 1
 		}
 	}
+	var archival *archive.Writer
+	var catalog *archive.Reader
+	if *archiveDir != "" {
+		archival, err = archive.Open(*archiveDir, archive.Options{MaxFrames: *frames, Keep: *keep, MaxBytes: *archiveBytes, Audio: *withAudio})
+		if err != nil {
+			fmt.Fprintln(diagnostics, err)
+			return 1
+		}
+		catalog, err = archive.NewReader(*archiveDir)
+		if err != nil {
+			archival.Close()
+			fmt.Fprintln(diagnostics, err)
+			return 1
+		}
+		defer catalog.Close()
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	hub := live.NewWithAudio(*withAudio)
+	if catalog != nil {
+		hub.SetRecordings(archive.Handler(catalog))
+	}
 	server := &http.Server{Addr: *address, TLSConfig: tlsConfig, Handler: hub.HandlerWithCredentials(*username, token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 	listener, err := net.Listen("tcp", *address)
 	if err != nil {
 		if recorder != nil {
 			recorder.Close()
+		}
+		if archival != nil {
+			archival.Close()
 		}
 		fmt.Fprintln(diagnostics, err)
 		return 1
@@ -156,11 +185,28 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 			err := live.Watch(attemptCtx, 45*time.Second, 15*time.Second, func(watchCtx context.Context, touch func()) error {
 				var audioConsumer func([]byte) error
 				if *withAudio {
-					audioConsumer = func(pcm []byte) error { hub.PublishAudio(pcm); return nil }
+					audioConsumer = func(pcm []byte) error {
+						hub.PublishAudio(pcm)
+						if archival != nil {
+							recordErr = archival.WriteAudio(pcm)
+							if recordErr != nil {
+								cancel()
+							}
+							return recordErr
+						}
+						return nil
+					}
 				}
 				_, err := capture.RunAV(watchCtx, c, time.Hour, *mode, func(frame []byte) error {
 					touch()
 					hub.Publish(frame)
+					if archival != nil {
+						recordErr = archival.WriteVideo(frame)
+						if recordErr != nil {
+							cancel()
+							return recordErr
+						}
+					}
 					if recorder != nil {
 						recordErr = recorder.WriteFrame(frame)
 						if recordErr != nil {
@@ -172,6 +218,12 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 				}, audioConsumer)
 				return err
 			})
+			if archival != nil {
+				if flushErr := archival.Flush(); flushErr != nil {
+					cancel()
+					return flushErr
+				}
+			}
 			if recordErr != nil {
 				return recordErr
 			}
@@ -199,6 +251,12 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	var closeErr error
 	if recorder != nil {
 		closeErr = recorder.Close()
+	}
+	if archival != nil {
+		closeErr = errors.Join(closeErr, archival.Close())
+		if dropped := archival.DroppedAudioSamples(); dropped > 0 {
+			fmt.Fprintf(diagnostics, "archive omitted %d audio samples at segment boundaries\n", dropped)
+		}
 	}
 	if closeErr != nil {
 		fmt.Fprintln(diagnostics, closeErr)

@@ -86,30 +86,12 @@ func AVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func(
 			}
 			continue
 		}
-		config, err := jpeg.DecodeConfig(bytes.NewReader(frame.Payload))
-		if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width > 4096 || config.Height > 4096 || int64(config.Width)*int64(config.Height) > 8847360 {
+		canonical, err := CanonicalJPEG(frame.Payload)
+		if err != nil {
 			report.RejectedFrames++
 			continue
 		}
-		payload := exactJPEGReader{bytes.NewReader(frame.Payload)}
-		if _, err := jpeg.Decode(payload); err != nil {
-			report.RejectedFrames++
-			continue
-		}
-		end := len(frame.Payload) - payload.Len()
-		trailing := frame.Payload[end:]
-		validPadding := len(trailing) <= 3
-		for _, value := range trailing {
-			if value != 0 {
-				validPadding = false
-				break
-			}
-		}
-		if !validPadding {
-			report.RejectedFrames++
-			continue
-		}
-		frame.Payload = frame.Payload[:end]
+		frame.Payload = canonical
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
@@ -122,4 +104,30 @@ func AVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func(
 		return report, ErrNoFrames
 	}
 	return report, nil
+}
+
+// CanonicalJPEG validates one complete image and removes at most three alignment zeros.
+func CanonicalJPEG(data []byte) ([]byte, error) {
+	if len(data) > 4<<20 {
+		return nil, errors.New("JPEG exceeds payload limit")
+	}
+	config, err := jpeg.DecodeConfig(bytes.NewReader(data))
+	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width > 4096 || config.Height > 4096 || int64(config.Width)*int64(config.Height) > 8847360 {
+		return nil, errors.New("invalid JPEG dimensions")
+	}
+	payload := exactJPEGReader{bytes.NewReader(data)}
+	if _, err := jpeg.Decode(payload); err != nil {
+		return nil, errors.New("invalid JPEG image")
+	}
+	end := len(data) - payload.Len()
+	trailing := data[end:]
+	if len(trailing) > 3 {
+		return nil, errors.New("invalid JPEG trailing bytes")
+	}
+	for _, value := range trailing {
+		if value != 0 {
+			return nil, errors.New("invalid JPEG trailing bytes")
+		}
+	}
+	return data[:end], nil
 }
