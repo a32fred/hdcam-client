@@ -27,6 +27,10 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		return 0
 	}
 	switch args[0] {
+	case "discover":
+		return discoverCommand(args[1:], output, diagnosticOutput)
+	case "wifi-plan":
+		return wifiPlanCommand(args[1:], output, diagnosticOutput)
 	case "preview":
 		flags := flag.NewFlagSet("preview", flag.ContinueOnError)
 		flags.SetOutput(diagnosticOutput)
@@ -86,6 +90,7 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		profile := flags.String("config", "", "private capture configuration")
 		duration := flags.Duration("duration", 10*time.Second, "whole seconds, 1s to 1h")
 		mode := flags.Int("video-mode", 1, "1=640x480, 2=320x240")
+		withAudio := flags.Bool("audio", false, "capture microphone audio to WAV without A/V synchronization")
 		destination := flags.String("output", "", "new output directory")
 		if err := flags.Parse(args[1:]); err != nil {
 			return 2
@@ -105,7 +110,14 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		}
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
-		err = writeOutput(*destination, output, func(dst io.Writer) (mjpeg.Report, error) { return capture.Run(ctx, c, *duration, *mode, dst) })
+		err = writeOutput(*destination, output, func(dst io.Writer) (mjpeg.Report, error) {
+			if !*withAudio {
+				return capture.Run(ctx, c, *duration, *mode, dst)
+			}
+			return withAudioFile(*destination, func(pcm func([]byte) error) (mjpeg.Report, error) {
+				return capture.RunAV(ctx, c, *duration, *mode, jpegSink(dst), pcm)
+			})
+		})
 		if err != nil {
 			fmt.Fprintln(diagnosticOutput, err)
 			return 1
@@ -115,6 +127,7 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 		flags := flag.NewFlagSet("extract", flag.ContinueOnError)
 		flags.SetOutput(diagnosticOutput)
 		destination := flags.String("output", "", "new output directory")
+		withAudio := flags.Bool("audio", false, "decode type-11 audio to a separate WAV")
 		if err := flags.Parse(args[1:]); err != nil {
 			return 2
 		}
@@ -122,7 +135,7 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 			fmt.Fprintln(diagnosticOutput, "Usage: hdcam extract --output NEW_DIRECTORY STREAM_FILE")
 			return 2
 		}
-		if err := extract(flags.Arg(0), *destination, output); err != nil {
+		if err := extractAV(flags.Arg(0), *destination, output, *withAudio); err != nil {
 			fmt.Fprintln(diagnosticOutput, err)
 			return 1
 		}
@@ -134,6 +147,10 @@ func run(args []string, output, diagnosticOutput io.Writer) int {
 }
 
 func extract(input, destination string, output io.Writer) error {
+	return extractAV(input, destination, output, false)
+}
+
+func extractAV(input, destination string, output io.Writer, withAudio bool) error {
 	source, err := os.Open(input)
 	if err != nil {
 		return err
@@ -146,7 +163,14 @@ func extract(input, destination string, output io.Writer) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("input must be a regular file")
 	}
-	return writeOutput(destination, output, func(dst io.Writer) (mjpeg.Report, error) { return mjpeg.WriteMJPEG(context.Background(), source, dst) })
+	return writeOutput(destination, output, func(dst io.Writer) (mjpeg.Report, error) {
+		if !withAudio {
+			return mjpeg.WriteMJPEG(context.Background(), source, dst)
+		}
+		return withAudioFile(destination, func(pcm func([]byte) error) (mjpeg.Report, error) {
+			return mjpeg.AVFrames(context.Background(), source, jpegSink(dst), pcm)
+		})
+	})
 }
 
 func writeOutput(destination string, output io.Writer, produce func(io.Writer) (mjpeg.Report, error)) error {

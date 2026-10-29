@@ -9,5 +9,11 @@
 - A shared latest-frame feed for multiple viewers, capture watchdog and reconnect backoff.
 - Segmented MJPEG recording with completed-segment retention.
 - Optional FFmpeg MP4 previews at an explicitly assumed constant frame rate.
-- PCM WAV writer; vendor ADPCM capture/decoding is not integrated.
+- PCM WAV writing and optional microphone capture/decoding.
 - Offline tests, fuzz target, native guard tests and CI definition.
+
+- Optional simultaneous video/audio capture from one SDK session; independent Go ADPCM decoder and streaming WAV export.
+- Browser sound with amplification and signal level, off until explicitly enabled on the server and started by the viewer.
+- Low-latency SDK reads and latest-frame snapshot polling to avoid proxy-buffered video bursts.
+- Linux LAN discovery with explicit interface binding and bounded replies.
+- Offline post-reset Wi-Fi request preparation; no credential transmission or automatic reset.

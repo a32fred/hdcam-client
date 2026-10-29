@@ -82,6 +82,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	cert := flags.String("tls-cert", "", "TLS certificate file")
 	key := flags.String("tls-key", "", "TLS private key file")
 	mode := flags.Int("video-mode", 1, "1=VGA, 2=QVGA")
+	withAudio := flags.Bool("audio", false, "enable microphone capture and independently timed browser audio")
 	recording := flags.String("record-dir", "", "optional new segmented recording directory")
 	frames := flags.Int("segment-frames", 300, "frames per segment; no fixed time implied")
 	keep := flags.Int("keep-segments", 12, "completed segments to retain")
@@ -123,7 +124,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	hub := live.New()
+	hub := live.NewWithAudio(*withAudio)
 	server := &http.Server{Addr: *address, TLSConfig: tlsConfig, Handler: hub.Handler(token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 	listener, err := net.Listen("tcp", *address)
 	if err != nil {
@@ -148,7 +149,11 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 		supervisor.Run(ctx, supervisor.Options{MinBackoff: time.Second, MaxBackoff: 30 * time.Second, StableAfter: time.Minute}, func(attemptCtx context.Context) error {
 			var recordErr error
 			err := live.Watch(attemptCtx, 45*time.Second, 15*time.Second, func(watchCtx context.Context, touch func()) error {
-				_, err := capture.RunFrames(watchCtx, c, time.Hour, *mode, func(frame []byte) error {
+				var audioConsumer func([]byte) error
+				if *withAudio {
+					audioConsumer = func(pcm []byte) error { hub.PublishAudio(pcm); return nil }
+				}
+				_, err := capture.RunAV(watchCtx, c, time.Hour, *mode, func(frame []byte) error {
 					touch()
 					hub.Publish(frame)
 					if recorder != nil {
@@ -159,7 +164,7 @@ func serveCommand(args []string, out, diagnostics io.Writer) int {
 						}
 					}
 					return nil
-				})
+				}, audioConsumer)
 				return err
 			})
 			if recordErr != nil {

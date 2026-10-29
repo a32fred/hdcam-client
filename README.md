@@ -1,6 +1,6 @@
 # hdcam-client
 
-A Go client for validating HDCAM SDK streams, experimental local capture, authenticated browser viewing, segmented recording and reconnect supervision. Own code uses the Go 1.26 standard library and a small C bridge. Proprietary SDK/runtime binaries are supplied separately; this is not an independent implementation of the vendor's transport.
+A Go client for validating HDCAM SDK streams, experimental local video/audio capture, authenticated browser viewing, segmented video recording and reconnect supervision. Own code uses the Go 1.26 standard library, embedded browser JavaScript and a small C bridge. Proprietary SDK/runtime binaries are supplied separately; this is not an independent implementation of the vendor's transport.
 
 ## Build and test
 
@@ -19,9 +19,13 @@ Native ARM64 runtime binaries can be built with `bash scripts/build-native.sh`. 
 bin/hdcam doctor [--config PRIVATE_FILE]
 bin/hdcam extract --output NEW_DIRECTORY STREAM_FILE
 bin/hdcam capture --config PRIVATE_FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY
+bin/hdcam capture --audio --config PRIVATE_FILE --duration 10s --output NEW_DIRECTORY
 bin/hdcam preview --output NEW_FILE.mp4 --fps 10 INPUT_MJPEG
 bin/hdcam token --output NEW_PRIVATE_TOKEN_FILE
 bin/hdcam serve --config PRIVATE_FILE --token-file PRIVATE_TOKEN_FILE
+bin/hdcam serve --audio --config PRIVATE_FILE --token-file PRIVATE_TOKEN_FILE
+bin/hdcam discover --interface CAMERA_LAN_INTERFACE --duration 3s
+bin/hdcam wifi-plan --config PRIVATE_FILE --wifi-profile PRIVATE_WIFI_FILE
 ```
 
 `doctor` validates tool paths and optional runtime ELF metadata without connecting. Without `--config`, missing FFmpeg or QEMU on PATH returns exit 1; a valid configured runtime returns exit 0 independently of optional PATH tools. Profiles must be private regular files (0600).
@@ -32,9 +36,9 @@ bin/hdcam serve --config PRIVATE_FILE --token-file PRIVATE_TOKEN_FILE
 
 `preview` uses external FFmpeg to render a silent H.264 MP4 at an **assumed constant frame rate**. It does not reconstruct camera timestamps or synchronize audio. Existing outputs are never replaced.
 
-`serve` opens one camera session and distributes validated frames to authenticated browser viewers. It retries failed/frozen captures and optionally records retained MJPEG segments. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
+`serve` opens one camera session and distributes validated frames to authenticated browser viewers. Snapshot polling displays the latest frame without buffering an old stream; multipart MJPEG is also available. It retries failed/frozen captures and optionally records retained video segments. `--audio` explicitly enables microphone capture and independent browser sound with adjustable amplification. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
 
-Current browser video has no audio. A PCM WAV writer exists, but the vendor ADPCM variant and portable decoder ABI remain unresolved; audio is not advertised as integrated. Factory-reset Wi-Fi provisioning, camera discovery without a known UID, motion detection and cross-platform native capture are not implemented. No flash, OTA or automatic Wi-Fi changes are performed.
+One-shot `capture`/`extract --audio` writes PCM WAV alongside video. The Go ADPCM decoder matched the original decoder byte for byte on the private reference recording; live browser audio is integrated, with no guaranteed A/V synchronization. Discovery can find candidate UID/MAC/IP values on an explicitly selected Linux interface. `wifi-plan` validates and constructs a post-reset provisioning request in memory but sends nothing; factory-reset recovery is not hardware-validated. Motion detection and cross-platform native capture remain unimplemented. No flash, OTA or automatic Wi-Fi changes are performed.
 
 Protocol details are in [docs/protocol.md](docs/protocol.md). The example user service is optional and is not installed automatically.
 

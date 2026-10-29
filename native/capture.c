@@ -12,11 +12,20 @@ extern usize strlen(const char *);
 extern void *memcpy(void *, const void *, usize);
 extern int dprintf(int, const char *, ...);
 extern void exit(int);
+extern void *malloc(usize);
+extern void free(void *);
+extern int sched_yield(void);
+extern int pthread_create(unsigned long *, const void *, void *(*)(void *), void *);
+extern int pthread_join(unsigned long, void **);
 struct timespec { long seconds; long nanoseconds; };
 extern int clock_gettime(int, struct timespec *);
 extern void (*signal(int, void (*)(int)))(int);
-static volatile int stopped;
-static void stop(int value) { (void)value; stopped = 1; }
+static int output_lock;
+#ifndef CAPTURE_TEST
+/* Android ARM64 int atomics are lock-free, including from signal handlers. */
+_Static_assert(__atomic_always_lock_free(sizeof(int), 0), "signal flag requires lock-free int atomics");
+static int interrupted, stopped, failed;
+static void stop(int value) { (void)value; __atomic_store_n(&interrupted, 1, __ATOMIC_RELAXED); }
 
 static int read_all(void *buffer, usize length) {
     char *p = buffer;
@@ -28,6 +37,7 @@ static int read_all(void *buffer, usize length) {
     }
     return 0;
 }
+#endif
 
 static int write_all(const void *buffer, usize length) {
     const char *p = buffer;
@@ -44,13 +54,81 @@ static u32 le32(const unsigned char *p) {
     return (u32)p[0] | (u32)p[1] << 8 | (u32)p[2] << 16 | (u32)p[3] << 24;
 }
 
+struct assembler {
+    unsigned char *bytes;
+    usize used, target, max_payload;
+    unsigned char type;
+};
+
+/* A channel retains its partial envelope until the complete payload arrives. */
+#if defined(__aarch64__) && defined(__clang__)
+/* Keep atomic lowering here: inlining can restore outlined runtime helpers. */
+__attribute__((target("no-outline-atomics"), noinline))
+#endif
+static int assemble(struct assembler *a, const unsigned char *data, usize length) {
+    while (length) {
+        usize need = a->target - a->used;
+        usize take = length < need ? length : need;
+        memcpy(a->bytes + a->used, data, take);
+        a->used += take; data += take; length -= take;
+        if (a->used != a->target) continue;
+        if (a->target == 32) {
+            u32 payload = le32(a->bytes + 16);
+            if (le32(a->bytes) != 0xa815aa55 || a->bytes[4] != a->type ||
+                !payload || payload > a->max_payload) return -1;
+            a->target = 32 + payload;
+            continue;
+        }
+        while (__atomic_exchange_n(&output_lock, 1, __ATOMIC_ACQUIRE)) sched_yield();
+        int result = write_all(a->bytes, a->target);
+        __atomic_store_n(&output_lock, 0, __ATOMIC_RELEASE);
+        if (result) return -1;
+        a->used = 0; a->target = 32;
+    }
+    return 0;
+}
+
+#ifndef CAPTURE_TEST
+struct channel {
+    int session;
+    unsigned char channel;
+    long deadline, nanoseconds;
+    int (*receive)(int, unsigned char, char *, int *, unsigned int);
+};
+
+static void *capture_channel(void *opaque) {
+    struct channel *c = opaque;
+    usize maximum = c->channel == 1 ? 4 * 1024 * 1024 : 2048;
+    struct assembler a = {malloc(maximum + 32), 0, 32, maximum, c->channel == 1 ? 3 : 11};
+    int receive_size = c->channel == 1 ? 4096 : 288;
+    unsigned char *buffer = malloc(4096);
+    if (!a.bytes || !buffer) goto error;
+    while (!__atomic_load_n(&interrupted, __ATOMIC_RELAXED) && !__atomic_load_n(&stopped, __ATOMIC_ACQUIRE)) {
+        struct timespec now;
+        if (clock_gettime(1, &now)) goto error;
+        if (now.seconds > c->deadline || (now.seconds == c->deadline && now.nanoseconds >= c->nanoseconds)) break;
+        int size = receive_size;
+        int status = c->receive(c->session, c->channel, (char *)buffer, &size, 100);
+        if (size < 0 || size > receive_size || (status < 0 && status != -3)) goto error;
+        if (size && assemble(&a, buffer, (usize)size)) goto error;
+    }
+    free(a.bytes); free(buffer);
+    return 0;
+error:
+    __atomic_store_n(&failed, 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&stopped, 1, __ATOMIC_RELEASE);
+    free(a.bytes); free(buffer);
+    return 0;
+}
+
 void _start(void) {
     unsigned char header[20];
     char sdk_init[4097], uid[129], command[65537];
     if (read_all(header, sizeof(header))) exit(2);
     u32 init_size = le32(header + 4), uid_size = le32(header + 8);
     u32 command_size = le32(header + 12), seconds = le32(header + 16);
-    if (le32(header) != 0x31434448 || !init_size || init_size > 4096 ||
+    int audio = le32(header) == 0x32434448;
+    if ((!audio && le32(header) != 0x31434448) || !init_size || init_size > 4096 ||
         !uid_size || uid_size > 128 || !command_size || command_size > 65536 || !seconds || seconds > 3600) exit(2);
     if (read_all(sdk_init, init_size) || read_all(uid, uid_size) || read_all(command, command_size)) exit(2);
     sdk_init[init_size] = uid[uid_size] = command[command_size] = 0;
@@ -76,18 +154,16 @@ void _start(void) {
     signal(2, stop); signal(15, stop); signal(13, (void (*)(int))1);
     struct timespec now;
     if (clock_gettime(1, &now)) { close_session(session); exit(4); }
-    long deadline = now.seconds + seconds;
-    long deadline_nanoseconds = now.nanoseconds;
-    char buffer[1048576];
-    int failed = 0;
-    while (!stopped) {
-        if (clock_gettime(1, &now)) { failed = 1; break; }
-        if (now.seconds > deadline || (now.seconds == deadline && now.nanoseconds >= deadline_nanoseconds)) break;
-        int size = sizeof(buffer);
-        status = receive(session, 1, buffer, &size, 1000);
-        if (size < 0 || (usize)size > sizeof(buffer) || (status < 0 && status != -3)) { failed = 1; break; }
-        if (size && write_all(buffer, (usize)size)) { failed = 1; break; }
+    struct channel video = {session, 1, now.seconds + seconds, now.nanoseconds, receive};
+    struct channel sound = {session, 2, video.deadline, video.nanoseconds, receive};
+    unsigned long thread;
+    if (audio && pthread_create(&thread, 0, capture_channel, &sound)) {
+        close_session(session); exit(4);
     }
+    capture_channel(&video);
+    __atomic_store_n(&stopped, 1, __ATOMIC_RELEASE);
+    if (audio && pthread_join(thread, 0)) { close_session(session); exit(4); }
     close_session(session);
-    exit(failed || stopped ? 4 : 0);
+    exit(__atomic_load_n(&failed, __ATOMIC_ACQUIRE) || __atomic_load_n(&interrupted, __ATOMIC_RELAXED) ? 4 : 0);
 }
+#endif

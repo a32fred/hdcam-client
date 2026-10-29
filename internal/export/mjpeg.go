@@ -8,16 +8,20 @@ import (
 	"image/jpeg"
 	"io"
 
+	"example.com/hdcam-client/internal/audio"
 	"example.com/hdcam-client/internal/media"
 )
 
 var ErrNoFrames = errors.New("no valid video frames")
 
 type Report struct {
-	Frames         uint64      `json:"frames"`
-	NonVideoFrames uint64      `json:"non_video_frames"`
-	RejectedFrames uint64      `json:"rejected_frames"`
-	Media          media.Stats `json:"media"`
+	Frames              uint64      `json:"frames"`
+	NonVideoFrames      uint64      `json:"non_video_frames"`
+	RejectedFrames      uint64      `json:"rejected_frames"`
+	AudioFrames         uint64      `json:"audio_frames,omitempty"`
+	AudioSamples        uint64      `json:"audio_samples,omitempty"`
+	RejectedAudioFrames uint64      `json:"rejected_audio_frames,omitempty"`
+	Media               media.Stats `json:"media"`
 }
 
 type exactJPEGReader struct{ *bytes.Reader }
@@ -44,6 +48,12 @@ func WriteMJPEG(ctx context.Context, source io.Reader, destination io.Writer) (r
 
 // Frames validates JPEGs before handing each complete frame to a synchronous consumer.
 func Frames(ctx context.Context, source io.Reader, consume func([]byte) error) (report Report, err error) {
+	return AVFrames(ctx, source, consume, nil)
+}
+
+// AVFrames routes independently decoded PCM packets alongside validated JPEGs.
+// Callbacks run synchronously; no audio/video timestamp synchronization is inferred.
+func AVFrames(ctx context.Context, source io.Reader, consume, consumeAudio func([]byte) error) (report Report, err error) {
 	reader := media.NewReader(source, 0)
 	defer func() { report.Media = reader.Statistics() }()
 	for {
@@ -62,6 +72,18 @@ func Frames(ctx context.Context, source io.Reader, consume func([]byte) error) (
 		}
 		if frame.Type != 3 {
 			report.NonVideoFrames++
+			if frame.Type == 11 && consumeAudio != nil {
+				pcm, err := audio.DecodeADPCM(frame.Payload)
+				if err != nil {
+					report.RejectedAudioFrames++
+					continue
+				}
+				if err := consumeAudio(pcm); err != nil {
+					return report, fmt.Errorf("consume PCM: %w", err)
+				}
+				report.AudioFrames++
+				report.AudioSamples += uint64(len(pcm) / 2)
+			}
 			continue
 		}
 		config, err := jpeg.DecodeConfig(bytes.NewReader(frame.Payload))

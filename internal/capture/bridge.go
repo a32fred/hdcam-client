@@ -19,6 +19,10 @@ import (
 )
 
 func buildRequest(c config.Config, duration time.Duration, mode int) ([]byte, error) {
+	return buildAVRequest(c, duration, mode, false)
+}
+
+func buildAVRequest(c config.Config, duration time.Duration, mode int, withAudio bool) ([]byte, error) {
 	if err := c.ValidateAccess(); err != nil {
 		return nil, err
 	}
@@ -33,12 +37,22 @@ func buildRequest(c config.Config, duration time.Duration, mode int) ([]byte, er
 		User      string `json:"user"`
 		Password  string `json:"pwd"`
 		DeviceMAC string `json:"devmac"`
-	}{"stream", 111, mode, 0, c.Username, c.Password, "0000"})
+		Audio     int    `json:"audio,omitempty"`
+	}{"stream", 111, mode, 0, c.Username, c.Password, "0000", func() int {
+		if withAudio {
+			return 1
+		}
+		return 0
+	}()})
 	if err != nil {
 		return nil, err
 	}
 	var input bytes.Buffer
-	for _, v := range []uint32{0x31434448, uint32(len(c.SDKInit)), uint32(len(c.UID)), uint32(len(command)), uint32(duration / time.Second)} {
+	magic := uint32(0x31434448)
+	if withAudio {
+		magic = 0x32434448
+	}
+	for _, v := range []uint32{magic, uint32(len(c.SDKInit)), uint32(len(c.UID)), uint32(len(command)), uint32(duration / time.Second)} {
 		if err := binary.Write(&input, binary.LittleEndian, v); err != nil {
 			return nil, err
 		}
@@ -69,10 +83,14 @@ func Run(ctx context.Context, c config.Config, duration time.Duration, mode int,
 }
 
 func RunFrames(ctx context.Context, c config.Config, duration time.Duration, mode int, consume func([]byte) error) (report mjpeg.Report, err error) {
+	return RunAV(ctx, c, duration, mode, consume, nil)
+}
+
+func RunAV(ctx context.Context, c config.Config, duration time.Duration, mode int, consume, consumeAudio func([]byte) error) (report mjpeg.Report, err error) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		return report, errors.New("native capture is supported only on Linux x86_64")
 	}
-	request, err := buildRequest(c, duration, mode)
+	request, err := buildAVRequest(c, duration, mode, consumeAudio != nil)
 	if err != nil {
 		return report, err
 	}
@@ -80,7 +98,7 @@ func RunFrames(ctx context.Context, c config.Config, duration time.Duration, mod
 	defer cancel()
 	err = process.Run(bounded, runtimeSpec(c, request), func(source io.Reader) error {
 		var decodeErr error
-		report, decodeErr = mjpeg.Frames(bounded, source, consume)
+		report, decodeErr = mjpeg.AVFrames(bounded, source, consume, consumeAudio)
 		return decodeErr
 	})
 	if err != nil {

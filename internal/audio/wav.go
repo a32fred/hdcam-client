@@ -1,9 +1,4 @@
-// Package audio writes decoded audio as a standard PCM WAV stream.
-//
-// The camera's type-11 payloads are known to be ADPCM, but the available
-// evidence identifies only the vendor application's CAdpcm decoder, not a
-// portable ADPCM variant. This package therefore accepts decoded PCM and
-// deliberately does not guess an ADPCM algorithm.
+// Package audio decodes the observed camera ADPCM and writes PCM WAV streams.
 package audio
 
 import (

@@ -29,3 +29,5 @@ jobs:
         run: |
           gcc -Wall -Wextra -Werror native/local_only_test.c -ldl -o /tmp/hdcam-guard-test
           /tmp/hdcam-guard-test
+          gcc -O2 -Wall -Wextra -Werror native/capture_test.c -o /tmp/hdcam-capture-test
+          /tmp/hdcam-capture-test

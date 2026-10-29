@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,15 +14,22 @@ import (
 
 // Hub stores one immutable JPEG and wakes viewers without queuing old frames.
 type Hub struct {
-	mu         sync.Mutex
-	frame      []byte
-	updated    time.Time
-	changed    chan struct{}
-	generation uint64
-	viewers    chan struct{}
+	mu               sync.Mutex
+	frame            []byte
+	updated          time.Time
+	changed          chan struct{}
+	generation       uint64
+	viewers          chan struct{}
+	audioEnabled     bool
+	audioSubscribers map[chan []byte]struct{}
 }
 
-func New() *Hub { return &Hub{changed: make(chan struct{}), viewers: make(chan struct{}, 16)} }
+//go:embed viewer.js
+var viewerJS string
+
+func New() *Hub {
+	return &Hub{changed: make(chan struct{}), viewers: make(chan struct{}, 16), audioSubscribers: make(map[chan []byte]struct{})}
+}
 func (h *Hub) Publish(frame []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -55,10 +63,15 @@ func (h *Hub) Handler(token string) http.Handler {
 			return
 		}
 		switch r.URL.Path {
+		case "/audio":
+			h.streamAudio(w, r)
+		case "/viewer.js":
+			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+			fmt.Fprint(w, viewerJS)
 		case "/":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; frame-ancestors 'none'")
-			fmt.Fprint(w, `<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width"><title>Câmera</title><h1>Câmera</h1><p>Vídeo sem áudio. Consulte <a href="/health">o estado da captura</a> se a imagem parar.</p><img src="/stream" alt="Vídeo da câmera" style="max-width:100%;height:auto"></html>`)
+			w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self' blob:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'")
+			fmt.Fprint(w, `<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width"><title>Câmera</title><h1>Câmera</h1><p id="connection" role="status">Verificando câmera…</p><img id="video" alt="Vídeo da câmera" style="max-width:100%;height:auto"><p><button id="audio" type="button">Ouvir áudio</button> <span id="audio-state" role="status"></span></p><p><label>Amplificação <input id="gain" type="range" min="1" max="20" value="4" step="1"></label> <output id="gain-value">4×</output></p><p><a href="/health">Diagnóstico</a></p><script src="/viewer.js" defer></script></html>`)
 		case "/health":
 			_, updated, sequence, _ := h.snapshot()
 			fresh := !updated.IsZero() && time.Since(updated) < 15*time.Second
@@ -82,12 +95,18 @@ func (h *Hub) Handler(token string) http.Handler {
 			if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 				return
 			}
-			frame, updated, _, _ := h.snapshot()
+			frame, updated, generation, _ := h.snapshot()
 			if updated.IsZero() || time.Since(updated) >= 15*time.Second {
 				http.Error(w, "camera unavailable", 503)
 				return
 			}
 			w.Header().Set("Content-Type", "image/jpeg")
+			etag := fmt.Sprintf(`"%d"`, generation)
+			w.Header().Set("ETag", etag)
+			if r.Header.Get("If-None-Match") == etag {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
 			w.Write(frame)
 		case "/stream":
 			h.stream(w, r)

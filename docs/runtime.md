@@ -35,7 +35,7 @@ bin/hdcam capture --config config.local.json --duration 10s --video-mode 1 --out
 
 Go launches QEMU as an external executable without a shell. SDK initialization, UID and command JSON are sent through stdin using a bounded length-prefixed message; they are not placed in process arguments or environment variables. Native stdout carries raw media only. Native stderr is discarded in the capture path to avoid relaying undocumented SDK output.
 
-The request starts with five little-endian 32-bit words: magic `0x31434448`, initialization length, UID length, command length and duration in seconds, followed by those three strings. Bounds are checked on both sides. The bridge verifies required SDK symbols, preserves partial reads with timeout code `-3`, uses a monotonic deadline and closes the session on ordinary completion/errors.
+The request starts with five little-endian 32-bit words: magic `0x31434448` for video or `0x32434448` for video/audio, initialization length, UID length, command length and duration in seconds, followed by those three strings. Bounds are checked on both sides. The bridge verifies required SDK symbols, preserves partial reads with timeout code `-3`, uses a monotonic deadline and closes the session on ordinary completion/errors. Video and optional audio use independent SDK read channels with 100 ms timeouts and small bounded requests. Each channel assembles complete envelopes before serialized stdout output; native incomplete final envelopes are omitted rather than mixed across channels.
 
 The parent provides a bounded context and propagates interruption to process cancellation. The child is killed and waited on when consumption fails or the context is canceled. Abrupt termination cannot guarantee a graceful vendor-library shutdown. Incomplete media remains a `.part` result for one-shot capture. The separate `serve` command adds frame watchdogs and reconnect supervision; see [viewing.md](viewing.md).
 
@@ -49,5 +49,5 @@ This is a compatibility guard for the known SDK call paths, not a sandbox for ma
 
 - Only Linux x86_64 capture has been validated.
 - Runtime ABI and SDK behavior depend on externally supplied files; public tests use synthetic helpers, not proprietary dependencies.
-- Capture exports video. Browser viewing and reconnect supervision are available through `serve`; remote access needs an existing transport and appropriate TLS configuration. Audio decoding and synchronization remain unimplemented.
+- Capture can export video plus separately decoded WAV with `--audio`. Browser viewing, optional sound and reconnect supervision are available through `serve`; remote access needs an existing transport and appropriate TLS configuration. Audio/video timestamp synchronization remains unimplemented.
 - Counter discontinuities are measured, not automatically repaired or attributed to a specific cause.

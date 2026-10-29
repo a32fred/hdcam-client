@@ -33,3 +33,9 @@ The exporter skips non-video envelopes. Each video payload must contain exactly 
 A truncated final envelope is omitted and reported in `media.trailing_bytes`. Other source/format/write errors return failure with the report accumulated so far. The CLI preserves the partial MJPEG file under `.part` and writes `complete:false` when it can write the report. A metadata-output failure may leave an otherwise valid MJPEG file while the command returns nonzero.
 
 The raw timestamps are not used to invent frame timing. Extraction produces JPEG concatenation; the separate `preview` command renders a silent MP4 at an explicitly assumed constant frame rate. Audio/video synchronization is not implemented.
+
+## Audio
+
+With an audio callback enabled, type-11 payloads are decoded independently to PCM16LE, mono at the observed 8 kHz rate. Payloads must be 1–2048 bytes. The nibble order is high first. Predictor and step index reset to zero for each packet. The decoder uses the 89-entry IMA step table with index adjustments -1,-1,-1,-1,2,4,6,8, but the increment is calculated as `step * magnitude / 4 + step / 8` with separate integer truncation. This differs from bit-by-bit IMA implementations; generic ADPCM containers are not assumed equivalent. Predictor and index are clamped after each sample. Output has four times as many bytes as the input.
+
+The Go implementation produced identical PCM bytes to the original decoder for 77 reference packets. This verifies that fixture, not universal compatibility with other camera families. Invalid audio packets increment `rejected_audio_frames`; accepted packets update `audio_frames` and `audio_samples`. `non_video_frames` includes those audio envelopes. Without audio enabled, non-video frames are skipped as before.
