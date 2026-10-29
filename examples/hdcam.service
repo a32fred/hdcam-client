@@ -1,0 +1,15 @@
+[Unit]
+Description=Local HDCAM viewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/hdcam serve --config %h/.config/hdcam/camera.json --token-file %h/.config/hdcam/viewer.token
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

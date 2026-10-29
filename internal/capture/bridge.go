@@ -59,6 +59,16 @@ func runtimeSpec(c config.Config, request []byte) process.Spec {
 }
 
 func Run(ctx context.Context, c config.Config, duration time.Duration, mode int, destination io.Writer) (report mjpeg.Report, err error) {
+	return RunFrames(ctx, c, duration, mode, func(frame []byte) error {
+		n, err := destination.Write(frame)
+		if err == nil && n != len(frame) {
+			return io.ErrShortWrite
+		}
+		return err
+	})
+}
+
+func RunFrames(ctx context.Context, c config.Config, duration time.Duration, mode int, consume func([]byte) error) (report mjpeg.Report, err error) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		return report, errors.New("native capture is supported only on Linux x86_64")
 	}
@@ -70,7 +80,7 @@ func Run(ctx context.Context, c config.Config, duration time.Duration, mode int,
 	defer cancel()
 	err = process.Run(bounded, runtimeSpec(c, request), func(source io.Reader) error {
 		var decodeErr error
-		report, decodeErr = mjpeg.WriteMJPEG(bounded, source, destination)
+		report, decodeErr = mjpeg.Frames(bounded, source, consume)
 		return decodeErr
 	})
 	if err != nil {

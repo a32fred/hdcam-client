@@ -1,15 +1,17 @@
 # hdcam-client
 
-An offline Go command-line tool for validating and extracting JPEG frames from HDCAM SDK stream files, with an experimental native capture path. The Go code uses the Go 1.26 standard library. Proprietary SDK/runtime binaries are not bundled.
+A Go client for validating HDCAM SDK streams, experimental local capture, authenticated browser viewing, segmented recording and reconnect supervision. Own code uses the Go 1.26 standard library and a small C bridge. Proprietary SDK/runtime binaries are supplied separately; this is not an independent implementation of the vendor's transport.
 
 ## Build and test
 
 ```sh
 go test ./...
+go vet ./...
+go test -race ./...
 go build -o bin/hdcam ./cmd/hdcam
 ```
 
-Native ARM64 runtime binaries can be built with `bash scripts/build-native.sh`. Set `ANDROID_LIBDIR` to an external ARM64 Bionic library directory; set `ZIG` if Zig is not available as `zig` on `PATH`. This build does not require Python. See [docs/runtime.md](docs/runtime.md) for runtime setup.
+Native ARM64 runtime binaries can be built with `bash scripts/build-native.sh`. Set `ANDROID_LIBDIR` to an external ARM64 Bionic library directory and `ZIG` to the installed Zig executable if needed. No Python is required. See [installation](docs/installation.md) and [runtime setup](docs/runtime.md).
 
 ## Commands
 
@@ -17,16 +19,23 @@ Native ARM64 runtime binaries can be built with `bash scripts/build-native.sh`. 
 bin/hdcam doctor [--config PRIVATE_FILE]
 bin/hdcam extract --output NEW_DIRECTORY STREAM_FILE
 bin/hdcam capture --config PRIVATE_FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY
+bin/hdcam preview --output NEW_FILE.mp4 --fps 10 INPUT_MJPEG
+bin/hdcam token --output NEW_PRIVATE_TOKEN_FILE
+bin/hdcam serve --config PRIVATE_FILE --token-file PRIVATE_TOKEN_FILE
 ```
 
-`doctor` checks tool paths and, when given a configuration, validates its runtime ELF metadata. It makes no connection. Without `--config`, it exits 1 if `ffmpeg` or `qemu-aarch64` is missing from `PATH`; with a valid config, it exits 0 even if an optional `PATH` tool is missing. The config must be supplied externally as a private regular file with mode `0600`.
+`doctor` validates tool paths and optional runtime ELF metadata without connecting. Without `--config`, missing FFmpeg or QEMU on PATH returns exit 1; a valid configured runtime returns exit 0 independently of optional PATH tools. Profiles must be private regular files (0600).
 
-`extract` reads 32-byte SDK envelopes, validates JPEG payloads, and writes `video.mjpg` and `result.json` in a new output directory. Put flags before the input file. A truncated final envelope is recoverable and omitted. `complete: true` means export finished successfully, not that every camera frame was received. Corruption or a write error leaves `video.mjpg.part` and reports `complete: false` when the report can be written.
+`extract` validates the 32-byte media envelopes and JPEG payloads, then writes `video.mjpg` and `result.json` in a new private output directory. A truncated last envelope is reported and omitted. `complete: true` means export finished, not that every camera frame was received. Failure preserves `.part` and writes `complete: false` when possible. Put flags before the input path.
 
-`capture` requires an external private config and runs for a whole-number duration from 1 second to 1 hour. Video mode `1` is VGA (640x480); mode `2` is QVGA (320x240). Native capture is experimental and supported only on Linux x86_64; this README does not claim a current live camera validation.
+`capture` uses the external SDK backend on Linux x86_64. Duration must be whole seconds from 1s to 1h. Mode 1 is VGA (640×480); mode 2 is QVGA (320×240). These modes were privately exercised on one camera; support for other camera families or capture platforms is not established.
 
-This version does not provide a browser UI, remote access, audio decoding, or MP4 rendering. Other operating systems and camera models are not claimed as supported.
+`preview` uses external FFmpeg to render a silent H.264 MP4 at an **assumed constant frame rate**. It does not reconstruct camera timestamps or synchronize audio. Existing outputs are never replaced.
 
-See [docs/protocol.md](docs/protocol.md) for stream protocol notes and [docs/runtime.md](docs/runtime.md) for runtime details.
+`serve` opens one camera session and distributes validated frames to authenticated browser viewers. It retries failed/frozen captures and optionally records retained MJPEG segments. Remote listeners require TLS. See [viewing and remote access](docs/viewing.md) and [post-reset recovery](docs/recovery.md). Remote networking must already be available; the client does not configure a VPN, router or cloud relay.
 
-The module path `example.com/hdcam-client` is temporary until an owner and permanent name are chosen. No license has been selected yet; choose one before publishing the code.
+Current browser video has no audio. A PCM WAV writer exists, but the vendor ADPCM variant and portable decoder ABI remain unresolved; audio is not advertised as integrated. Factory-reset Wi-Fi provisioning, camera discovery without a known UID, motion detection and cross-platform native capture are not implemented. No flash, OTA or automatic Wi-Fi changes are performed.
+
+Protocol details are in [docs/protocol.md](docs/protocol.md). The example user service is optional and is not installed automatically.
+
+The module path `example.com/hdcam-client` is temporary until an owner and permanent name are chosen. No license has been selected yet; choose one before publishing. See [THIRD_PARTY.md](THIRD_PARTY.md) for external runtime boundaries.

@@ -33,6 +33,17 @@ func (r exactJPEGReader) Read(p []byte) (int, error) {
 // WriteMJPEG preserves complete JPEG payloads; a truncated final envelope is
 // reported but recoverable. Cancellation cannot interrupt a blocked source.Read.
 func WriteMJPEG(ctx context.Context, source io.Reader, destination io.Writer) (report Report, err error) {
+	return Frames(ctx, source, func(frame []byte) error {
+		n, err := destination.Write(frame)
+		if err == nil && n != len(frame) {
+			return io.ErrShortWrite
+		}
+		return err
+	})
+}
+
+// Frames validates JPEGs before handing each complete frame to a synchronous consumer.
+func Frames(ctx context.Context, source io.Reader, consume func([]byte) error) (report Report, err error) {
 	reader := media.NewReader(source, 0)
 	defer func() { report.Media = reader.Statistics() }()
 	for {
@@ -80,12 +91,8 @@ func WriteMJPEG(ctx context.Context, source io.Reader, destination io.Writer) (r
 		if err := ctx.Err(); err != nil {
 			return report, err
 		}
-		written, err := destination.Write(frame.Payload)
-		if err != nil {
-			return report, fmt.Errorf("write MJPEG: %w", err)
-		}
-		if written != len(frame.Payload) {
-			return report, io.ErrShortWrite
+		if err := consume(frame.Payload); err != nil {
+			return report, fmt.Errorf("consume JPEG: %w", err)
 		}
 		report.Frames++
 	}

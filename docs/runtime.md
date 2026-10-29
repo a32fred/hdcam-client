@@ -37,7 +37,7 @@ Go launches QEMU as an external executable without a shell. SDK initialization, 
 
 The request starts with five little-endian 32-bit words: magic `0x31434448`, initialization length, UID length, command length and duration in seconds, followed by those three strings. Bounds are checked on both sides. The bridge verifies required SDK symbols, preserves partial reads with timeout code `-3`, uses a monotonic deadline and closes the session on ordinary completion/errors.
 
-The parent provides a bounded context and propagates interruption to process cancellation. The child is killed and waited on when consumption fails or the context is canceled. Abrupt termination cannot guarantee a graceful vendor-library shutdown. Incomplete media remains a `.part` result; automatic reconnection is not implemented yet.
+The parent provides a bounded context and propagates interruption to process cancellation. The child is killed and waited on when consumption fails or the context is canceled. Abrupt termination cannot guarantee a graceful vendor-library shutdown. Incomplete media remains a `.part` result for one-shot capture. The separate `serve` command adds frame watchdogs and reconnect supervision; see [viewing.md](viewing.md).
 
 ## Network filter scope
 
@@ -49,5 +49,5 @@ This is a compatibility guard for the known SDK call paths, not a sandbox for ma
 
 - Only Linux x86_64 capture has been validated.
 - Runtime ABI and SDK behavior depend on externally supplied files; public tests use synthetic helpers, not proprietary dependencies.
-- Capture exports video. Audio decoding, synchronization, browser viewing, retry/reconnect and remote access remain unimplemented.
+- Capture exports video. Browser viewing and reconnect supervision are available through `serve`; remote access needs an existing transport and appropriate TLS configuration. Audio decoding and synchronization remain unimplemented.
 - Counter discontinuities are measured, not automatically repaired or attributed to a specific cause.

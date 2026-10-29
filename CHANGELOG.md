@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- Go streaming reader for bounded media envelopes and sequence statistics.
-- JPEG extraction with image limits, zero-alignment handling and partial-result preservation.
-- Offline tool diagnostics and private runtime configuration checks.
-- Experimental isolated SDK capture with stdin configuration and bounded cancellation.
-- Native destination guard with configurable private IPv4 prefix.
-
-No public release has been published. Browser viewing, remote access, audio integration and automatic reconnection are not implemented.
+- Go streaming media parser and JPEG validation/extraction.
+- Experimental Linux x86_64 capture using an external ARM64 SDK/runtime.
+- Private configuration, runtime diagnostics and cancelable isolated subprocesses.
+- Authenticated browser MJPEG and snapshots, with TLS required for non-loopback listeners.
+- A shared latest-frame feed for multiple viewers, capture watchdog and reconnect backoff.
+- Segmented MJPEG recording with completed-segment retention.
+- Optional FFmpeg MP4 previews at an explicitly assumed constant frame rate.
+- PCM WAV writer; vendor ADPCM capture/decoding is not integrated.
+- Offline tests, fuzz target, native guard tests and CI definition.

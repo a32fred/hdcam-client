@@ -16,16 +16,38 @@ import (
 	"example.com/hdcam-client/internal/config"
 	"example.com/hdcam-client/internal/diagnostic"
 	mjpeg "example.com/hdcam-client/internal/export"
+	"example.com/hdcam-client/internal/preview"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func run(args []string, output, diagnosticOutput io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		fmt.Fprintln(output, "Usage: hdcam doctor [--config FILE] | hdcam extract --output NEW_DIRECTORY STREAM_FILE | hdcam capture --config FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY")
+		fmt.Fprintln(output, "Usage: hdcam doctor [--config FILE] | hdcam extract --output NEW_DIRECTORY STREAM_FILE | hdcam capture --config FILE --duration 10s --video-mode 1 --output NEW_DIRECTORY | hdcam token --output FILE | hdcam serve --config FILE --token-file FILE | hdcam preview --output NEW_MP4 --fps 10 INPUT_MJPEG")
 		return 0
 	}
 	switch args[0] {
+	case "preview":
+		flags := flag.NewFlagSet("preview", flag.ContinueOnError)
+		flags.SetOutput(diagnosticOutput)
+		destination := flags.String("output", "", "new MP4 file")
+		fps := flags.Int("fps", 10, "assumed constant preview frame rate, not camera timing")
+		ffmpeg := flags.String("ffmpeg", "ffmpeg", "FFmpeg executable")
+		if flags.Parse(args[1:]) != nil || flags.NArg() != 1 || *destination == "" || *fps < 1 || *fps > 60 {
+			return 2
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		if err := preview.Run(ctx, *ffmpeg, flags.Arg(0), *destination, *fps); err != nil {
+			fmt.Fprintln(diagnosticOutput, err)
+			return 1
+		}
+		fmt.Fprintf(output, "preview rendered at assumed %d fps; camera timing is not reconstructed\n", *fps)
+		return 0
+	case "token":
+		return tokenCommand(args[1:], output, diagnosticOutput)
+	case "serve":
+		return serveCommand(args[1:], output, diagnosticOutput)
 	case "doctor":
 		flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 		flags.SetOutput(diagnosticOutput)

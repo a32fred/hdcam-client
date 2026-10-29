@@ -32,4 +32,4 @@ The exporter skips non-video envelopes. Each video payload must contain exactly 
 
 A truncated final envelope is omitted and reported in `media.trailing_bytes`. Other source/format/write errors return failure with the report accumulated so far. The CLI preserves the partial MJPEG file under `.part` and writes `complete:false` when it can write the report. A metadata-output failure may leave an otherwise valid MJPEG file while the command returns nonzero.
 
-The raw timestamps are not used to invent frame timing. Extraction produces JPEG concatenation only; MP4 rendering and audio/video synchronization are not implemented.
+The raw timestamps are not used to invent frame timing. Extraction produces JPEG concatenation; the separate `preview` command renders a silent MP4 at an explicitly assumed constant frame rate. Audio/video synchronization is not implemented.
