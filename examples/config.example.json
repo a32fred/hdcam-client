@@ -1,0 +1,17 @@
+{
+  "uid": "YOUR_DEVICE_ID",
+  "username": "YOUR_CAMERA_USERNAME",
+  "password": "SET_LOCALLY",
+  "sdk_init": "YOUR_AUTHORIZED_SDK_INITIALIZATION",
+  "qemu": "runtime/qemu-aarch64",
+  "bridge": "bin/capture-arm64",
+  "library": "runtime/sdk/libobject_jni.so",
+  "network_guard": "bin/local_only-arm64.so",
+  "sysroot": "runtime/android",
+  "library_path": [
+    "runtime/sdk",
+    "runtime/android/apex/com.android.runtime/lib64/bionic",
+    "runtime/android/system/lib64"
+  ],
+  "allowed_subnet": "192.168.56.0/24"
+}
