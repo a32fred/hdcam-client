@@ -2,6 +2,8 @@
 
 No third-party binaries are included in this source tree. The project's own source is MIT licensed (see LICENSE); that grant does not extend to any component listed below.
 
+The MIT license covers only source code authored for this project. It does not extend to any manufacturer SDK, runtime binary, firmware image or decompiled material, none of which are distributed here.
+
 | Component | Use | Distribution status |
 |---|---|---|
 | Go toolchain / standard library | Build and Go-only processing | Installed separately; follow upstream conditions |
