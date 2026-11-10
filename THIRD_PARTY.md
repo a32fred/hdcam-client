@@ -1,6 +1,6 @@
 # Third-party components
 
-No third-party binaries are included in this source tree. The project's own source license has not been selected; this must be resolved before the first public release.
+No third-party binaries are included in this source tree. The project's own source is MIT licensed (see LICENSE); that grant does not extend to any component listed below.
 
 | Component | Use | Distribution status |
 |---|---|---|
@@ -13,4 +13,4 @@ No third-party binaries are included in this source tree. The project's own sour
 
 The C bridge exposes a narrow API boundary; it does not replace the SDK or authorize redistribution. No SDK initialization constant, proprietary implementation, APK, firmware image or decompiled source is supplied here.
 
-Before publication, audit source provenance, choose the license for the project's own code, and verify any dependency instructions. Do not apply the project's license to externally supplied runtime files.
+Source provenance has been audited for the published tree: no decompiled material, APK, firmware image, packet capture or real device identifier is included. Do not apply the project's license to externally supplied runtime files. If you add a dependency, add its notice here and pin it in `go.mod`.

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"example.com/hdcam-client/internal/audio"
+	"github.com/a32fred/hdcam-client/internal/audio"
 )
 
 type Options struct {

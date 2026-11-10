@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
-	"example.com/hdcam-client/internal/audio"
-	mjpeg "example.com/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/audio"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
 	"io"
 	"os"
 	"path/filepath"

@@ -6,4 +6,6 @@ For browser playback logic, run `node --test internal/live/viewer_test.js intern
 
 Use synthetic media in tests. Do not commit SDK/runtime binaries, firmware, APKs, camera identifiers, credentials, actual camera imagery or packet captures. Capture support claims need hardware evidence and must identify limitations without exposing device-specific values. Building for another operating system is not evidence of working capture on that system.
 
-The permanent module path and license remain pending; resolve them before public distribution.
+The module path is `github.com/a32fred/hdcam-client` and the project's own code is MIT licensed (see LICENSE). Do not apply that license to externally supplied runtime files.
+
+Keep pull requests narrow. A change that widens scope, adds a dependency without a demonstrated requirement, or weakens a documented limitation will be declined.

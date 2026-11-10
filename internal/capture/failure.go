@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 
-	mjpeg "example.com/hdcam-client/internal/export"
-	"example.com/hdcam-client/internal/media"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/media"
 )
 
 // RetryCode categorizes an attempt while its supervisor remains active.

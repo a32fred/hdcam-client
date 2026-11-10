@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	mjpeg "example.com/hdcam-client/internal/export"
-	"example.com/hdcam-client/internal/live"
-	"example.com/hdcam-client/internal/media"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/live"
+	"github.com/a32fred/hdcam-client/internal/media"
 )
 
 func TestRetryCodeRedactsDetails(t *testing.T) {

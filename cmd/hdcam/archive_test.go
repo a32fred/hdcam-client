@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/hdcam-client/internal/archive"
+	"github.com/a32fred/hdcam-client/internal/archive"
 )
 
 func archiveJPEG(t *testing.T) []byte {

@@ -8,8 +8,8 @@ import (
 	"image/jpeg"
 	"io"
 
-	"example.com/hdcam-client/internal/audio"
-	"example.com/hdcam-client/internal/media"
+	"github.com/a32fred/hdcam-client/internal/audio"
+	"github.com/a32fred/hdcam-client/internal/media"
 )
 
 var ErrNoFrames = errors.New("no valid video frames")

@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"example.com/hdcam-client/internal/archive"
-	"example.com/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/archive"
+	"github.com/a32fred/hdcam-client/internal/export"
 )
 
 type Options struct {

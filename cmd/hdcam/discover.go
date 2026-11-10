@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"example.com/hdcam-client/internal/discovery"
 	"flag"
 	"fmt"
+	"github.com/a32fred/hdcam-client/internal/discovery"
 	"io"
 	"os"
 	"os/signal"

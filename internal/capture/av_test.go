@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/hdcam-client/internal/config"
+	"github.com/a32fred/hdcam-client/internal/config"
 )
 
 func TestBuildAVRequestEnablesAudioOnlyForAVMode(t *testing.T) {

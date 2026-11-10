@@ -25,3 +25,10 @@ config.local.json
 *.key
 frame-arrivals.jsonl
 frame-trace-summary.json
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

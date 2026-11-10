@@ -12,8 +12,8 @@ import (
 	"net/url"
 	"time"
 
-	"example.com/hdcam-client/internal/archivefeed"
-	"example.com/hdcam-client/internal/live"
+	"github.com/a32fred/hdcam-client/internal/archivefeed"
+	"github.com/a32fred/hdcam-client/internal/live"
 )
 
 type Options struct {

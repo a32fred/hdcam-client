@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"example.com/hdcam-client/internal/config"
-	mjpeg "example.com/hdcam-client/internal/export"
-	"example.com/hdcam-client/internal/process"
+	"github.com/a32fred/hdcam-client/internal/config"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/process"
 )
 
 func buildRequest(c config.Config, duration time.Duration, mode int) ([]byte, error) {

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"example.com/hdcam-client/internal/live"
-	"example.com/hdcam-client/internal/status"
+	"github.com/a32fred/hdcam-client/internal/live"
+	"github.com/a32fred/hdcam-client/internal/status"
 )
 
 func statusCommand(args []string, out, diagnostics io.Writer) int {

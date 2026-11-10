@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	mjpeg "example.com/hdcam-client/internal/export"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
 )
 
 func TestWriteOutputWithArrivalTrace(t *testing.T) {

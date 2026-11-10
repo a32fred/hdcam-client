@@ -5,7 +5,7 @@ import (
 	"net"
 	"sort"
 
-	"example.com/hdcam-client/internal/provision"
+	"github.com/a32fred/hdcam-client/internal/provision"
 )
 
 type Device struct {

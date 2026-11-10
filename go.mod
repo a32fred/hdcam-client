@@ -1,4 +1,4 @@
-module example.com/hdcam-client
+module github.com/a32fred/hdcam-client
 
 go 1.26.0
 

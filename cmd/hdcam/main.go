@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"example.com/hdcam-client/internal/capture"
-	"example.com/hdcam-client/internal/config"
-	"example.com/hdcam-client/internal/diagnostic"
-	mjpeg "example.com/hdcam-client/internal/export"
-	"example.com/hdcam-client/internal/preview"
+	"github.com/a32fred/hdcam-client/internal/capture"
+	"github.com/a32fred/hdcam-client/internal/config"
+	"github.com/a32fred/hdcam-client/internal/diagnostic"
+	mjpeg "github.com/a32fred/hdcam-client/internal/export"
+	"github.com/a32fred/hdcam-client/internal/preview"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }

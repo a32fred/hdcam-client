@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/hdcam-client/internal/archive"
+	"github.com/a32fred/hdcam-client/internal/archive"
 )
 
 func testWriter(t *testing.T, audio bool) *archive.Writer {

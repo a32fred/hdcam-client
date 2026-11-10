@@ -17,12 +17,12 @@ import (
 	"syscall"
 	"time"
 
-	"example.com/hdcam-client/internal/archive"
-	"example.com/hdcam-client/internal/capture"
-	"example.com/hdcam-client/internal/config"
-	"example.com/hdcam-client/internal/live"
-	"example.com/hdcam-client/internal/record"
-	"example.com/hdcam-client/internal/supervisor"
+	"github.com/a32fred/hdcam-client/internal/archive"
+	"github.com/a32fred/hdcam-client/internal/capture"
+	"github.com/a32fred/hdcam-client/internal/config"
+	"github.com/a32fred/hdcam-client/internal/live"
+	"github.com/a32fred/hdcam-client/internal/record"
+	"github.com/a32fred/hdcam-client/internal/supervisor"
 )
 
 func loadToken(path string) (string, error) {
